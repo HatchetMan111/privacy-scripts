@@ -277,7 +277,7 @@
       #lva-links a:hover{color:#888;text-decoration:underline;}
 
       #lva-reopen{
-        position:fixed;bottom:20px;right:72px;z-index:9998;
+        position:fixed;bottom:14px;right:72px;z-index:9998;
         background:#111;color:#FFD234;border:1px solid #333;
         border-radius:50%;width:42px;height:42px;
         font-size:19px;cursor:pointer;display:none;
