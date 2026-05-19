@@ -117,49 +117,75 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 4. PRIVACYSTORAGE – sicherer localStorage Guard
+  // 4. GLOBALER localStorage OVERRIDE – kein Rechner-Code nötig
   // ═══════════════════════════════════════════════════════════════
-  window.PrivacyStorage = {
-    /**
-     * Wert speichern – nur wenn Einwilligung vorhanden
-     * Nutzung: PrivacyStorage.set('solar-ergebnis', { kwp: 5 })
-     */
-    set: function (key, value) {
-      if (!hasConsent()) {
-        console.info('[LVA] Speichern pausiert – warte auf Einwilligung.');
-        // Nach Einwilligung automatisch speichern
-        document.addEventListener('lva:consent', function handler() {
-          try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
-          document.removeEventListener('lva:consent', handler);
-        });
-        return false;
-      }
-      try { localStorage.setItem(key, JSON.stringify(value)); return true; }
-      catch (e) { console.warn('[LVA] Speichern fehlgeschlagen:', e); return false; }
-    },
+  // Wir überschreiben localStorage.setItem und localStorage.getItem
+  // global. Alle Rechner funktionieren damit automatisch ohne
+  // Codeänderung – der Guard greift unsichtbar im Hintergrund.
 
-    /** Wert lesen */
-    get: function (key, fallback) {
+  const _realStorage = {
+    setItem:    window.localStorage.setItem.bind(localStorage),
+    getItem:    window.localStorage.getItem.bind(localStorage),
+    removeItem: window.localStorage.removeItem.bind(localStorage),
+    key:        window.localStorage.key.bind(localStorage),
+    get length(){ return localStorage.length; }
+  };
+
+  // Queue: Speicher-Aufrufe die vor Einwilligung kamen
+  const _pendingWrites = [];
+
+  // Nach Einwilligung alle gepufferten Schreibvorgänge nachholen
+  document.addEventListener('lva:consent', function() {
+    _pendingWrites.forEach(function(item) {
+      try { _realStorage.setItem(item.key, item.value); } catch {}
+    });
+    _pendingWrites.length = 0;
+  });
+
+  // localStorage.setItem überschreiben
+  Object.defineProperty(window.localStorage, 'setItem', {
+    configurable: true,
+    value: function(key, value) {
+      if (key === CFG.consentKey) {
+        // Consent-Key immer direkt speichern
+        _realStorage.setItem(key, value);
+        return;
+      }
+      if (!hasConsent()) {
+        // Noch keine Einwilligung → in Queue puffern
+        _pendingWrites.push({ key: key, value: value });
+        return;
+      }
+      _realStorage.setItem(key, value);
+    }
+  });
+
+  // localStorage.getItem überschreiben
+  Object.defineProperty(window.localStorage, 'getItem', {
+    configurable: true,
+    value: function(key) {
+      if (key === CFG.consentKey) return _realStorage.getItem(key);
+      if (!hasConsent()) return null;
+      return _realStorage.getItem(key);
+    }
+  });
+
+  // PrivacyStorage als komfortabler Helfer (optional nutzbar)
+  window.PrivacyStorage = {
+    set: function(key, value) { localStorage.setItem(key, JSON.stringify(value)); },
+    get: function(key, fallback) {
       if (fallback === undefined) fallback = null;
-      if (!hasConsent()) return fallback;
       try {
         const v = localStorage.getItem(key);
         return v !== null ? JSON.parse(v) : fallback;
       } catch { return fallback; }
     },
-
-    /** Einzelnen Wert löschen */
-    remove: function (key) {
-      try { localStorage.removeItem(key); } catch {}
-    },
-
-    /** Alle LVA-Rechner-Daten löschen (außer Consent selbst) */
-    clearAll: function () {
+    remove: function(key) { try { localStorage.removeItem(key); } catch {} },
+    clearAll: function() {
       try {
         const keep = [CFG.consentKey];
-        Object.keys(localStorage)
-          .filter(k => !keep.includes(k))
-          .forEach(k => localStorage.removeItem(k));
+        Object.keys(_realStorage).filter(k => !keep.includes(k))
+          .forEach(k => _realStorage.removeItem(k));
       } catch {}
     }
   };
@@ -251,13 +277,24 @@
       #lva-links a:hover{color:#888;text-decoration:underline;}
 
       #lva-reopen{
-        position:fixed;bottom:20px;left:20px;z-index:9998;
-        background:#111;color:#FFD234;border:1px solid #2a2a2a;
-        border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;
-        font-family:system-ui,sans-serif;cursor:pointer;display:none;
-        box-shadow:0 2px 12px rgba(0,0,0,.5);transition:all .2s;
+        position:fixed;bottom:20px;right:16px;z-index:9998;
+        background:#111;color:#FFD234;border:1px solid #333;
+        border-radius:50%;width:42px;height:42px;
+        font-size:19px;cursor:pointer;display:none;
+        box-shadow:0 2px 14px rgba(0,0,0,.55);transition:all .2s;
+        align-items:center;justify-content:center;padding:0;
+        font-family:system-ui,sans-serif;
       }
-      #lva-reopen:hover{background:#1a1a1a;border-color:#FFD234;}
+      #lva-reopen:hover{background:#1c1c1c;border-color:#FFD234;transform:scale(1.12);}
+      #lva-reopen::after{
+        content:'Cookie-Einstellungen';
+        position:absolute;right:50px;bottom:50%;transform:translateY(50%);
+        background:#111;color:#FFD234;border:1px solid #333;
+        font-size:11px;font-weight:600;white-space:nowrap;
+        padding:5px 10px;border-radius:6px;pointer-events:none;
+        opacity:0;transition:opacity .2s;font-family:system-ui,sans-serif;
+      }
+      #lva-reopen:hover::after{opacity:1;}
 
       #lva-footer{
         text-align:center;padding:14px 20px;font-size:12px;color:#444;
@@ -361,14 +398,16 @@
     if (!btn) {
       btn = document.createElement('button');
       btn.id = 'lva-reopen';
-      btn.innerHTML = '🍪 Cookie-Einstellungen';
+      btn.innerHTML = '🍪';
+      btn.setAttribute('aria-label','Cookie-Einstellungen');
+      btn.title = 'Cookie-Einstellungen';
       btn.onclick = function () {
         closeBanner();
         showBanner();
       };
       document.body.appendChild(btn);
     }
-    btn.style.display = 'block';
+    btn.style.display = 'flex';
   }
 
   function injectFooter() {
