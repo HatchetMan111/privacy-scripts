@@ -382,6 +382,19 @@
     if (el) el.remove();
   }
 
+  function removeInjectedFooter() {
+    const footer = document.getElementById('lva-footer');
+    if (footer) footer.remove();
+  }
+
+  function watchInjectedFooter() {
+    removeInjectedFooter();
+    new MutationObserver(removeInjectedFooter).observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // 8. REOPEN-BUTTON
   // ═══════════════════════════════════════════════════════════════
@@ -407,6 +420,7 @@
   // ═══════════════════════════════════════════════════════════════
   function init() {
     injectStyles();
+    watchInjectedFooter();
 
     const saved = loadConsent();
     if (saved !== null) {
