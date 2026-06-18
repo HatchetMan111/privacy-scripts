@@ -6,7 +6,6 @@
  *   ✅ Google Fonts Blocking (erst nach Einwilligung)
  *   ✅ Cookie-Banner im LichtValley-Stil (Schwarz / #FFD234)
  *   ✅ PrivacyStorage Guard (localStorage nur nach Einwilligung)
- *   ✅ Footer mit Impressum / Datenschutz / Cookie-Einstellungen
  *   ✅ Widerruf jederzeit möglich
  *
  * GitHub: https://hatchetman111.github.io/privacy-scripts/lva-privacy.js
@@ -296,13 +295,6 @@
       }
       #lva-reopen:hover::after{opacity:1;}
 
-      #lva-footer{
-        text-align:center;padding:14px 20px;font-size:12px;color:#444;
-        font-family:system-ui,sans-serif;border-top:1px solid #1a1a1a;
-        margin-top:40px;
-      }
-      #lva-footer a{color:#555;text-decoration:none;margin:0 6px;}
-      #lva-footer a:hover{color:#888;text-decoration:underline;}
     `;
     document.head.appendChild(s);
   }
@@ -391,7 +383,7 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 8. REOPEN-BUTTON & FOOTER
+  // 8. REOPEN-BUTTON
   // ═══════════════════════════════════════════════════════════════
   function showReopenBtn() {
     let btn = document.getElementById('lva-reopen');
@@ -410,24 +402,11 @@
     btn.style.display = 'flex';
   }
 
-  function injectFooter() {
-    if (document.getElementById('lva-footer')) return;
-    const f = document.createElement('div');
-    f.id = 'lva-footer';
-    f.innerHTML = `
-      <a href="${CFG.impressumUrl}">Impressum</a> ·
-      <a href="${CFG.privacyUrl}">Datenschutz</a> ·
-      <a href="#" onclick="document.getElementById('lva-reopen')?.click();return false;">Cookie-Einstellungen</a>
-    `;
-    document.body.appendChild(f);
-  }
-
   // ═══════════════════════════════════════════════════════════════
   // 9. INITIALISIERUNG
   // ═══════════════════════════════════════════════════════════════
   function init() {
     injectStyles();
-    injectFooter();
 
     const saved = loadConsent();
     if (saved !== null) {
